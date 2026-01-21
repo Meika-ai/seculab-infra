@@ -76,7 +76,8 @@ def create_linux_user(username: str, password: str, home_dir: Path) -> bool:
         proc = subprocess.Popen(
             ["chpasswd"],
             stdin=subprocess.PIPE,
-            capture_output=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
         proc.communicate(f"{username}:{password}".encode())
         
