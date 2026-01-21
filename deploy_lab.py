@@ -325,7 +325,7 @@ def export_csv(instances: List[Dict], output_path: Path):
     fieldnames = [
         'uuid', 'url-instance', 'ssh-user', 'ssh-password',
         'secret-sqli', 'secret-idor', 'secret-xss', 
-        'secret-rce', 'secret-logic', 'secret-prompt-injection'
+        'secret-rce', 'secret-logic', 'secret-debug', 'secret-prompt-injection'
     ]
     
     with open(output_path, 'w', newline='') as f:
@@ -344,6 +344,7 @@ def export_csv(instances: List[Dict], output_path: Path):
                     'secret-xss': inst['flags']['xss'],
                     'secret-rce': inst['flags']['rce'],
                     'secret-logic': inst['flags']['logic'],
+                    'secret-debug': inst['flags']['debug'],
                     'secret-prompt-injection': inst['flags']['prompt'],
                 })
     
