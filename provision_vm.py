@@ -96,7 +96,9 @@ apt-get install -y \\
     libapache2-mod-fcgid \\
     sqlite3 \\
     git \\
-    ufw \\
+    python3 \\
+    python3-pip \\
+    python3-venv \\
     certbot \\
     python3-certbot-apache
 
@@ -104,20 +106,10 @@ apt-get install -y \\
 a2enmod proxy_fcgi setenvif rewrite headers ssl
 a2enconf php8.3-fpm
 
-# Configuration UFW (pare-feu)
-ufw default deny incoming
-ufw default deny outgoing
-ufw allow 22/tcp        # SSH
-ufw allow 80/tcp        # HTTP
-ufw allow 443/tcp       # HTTPS
-# Autoriser l'API Gemini (Google)
-ufw allow out to 142.250.0.0/15 port 443
-ufw allow out to 172.217.0.0/16 port 443
-ufw allow out to 216.58.0.0/16 port 443
-# Autoriser DNS pour resolution
-ufw allow out 53/udp
-ufw allow out 53/tcp
-ufw --force enable
+# Desactivation UFW pour permettre acces internet complet
+# (Necessaire pour git clone, API Gemini, etc.)
+systemctl stop ufw
+systemctl disable ufw
 
 # Creation du repertoire pour les instances
 mkdir -p /var/www/instances
@@ -255,8 +247,12 @@ def main():
     print(f"1. Attendez 2-3 minutes que le startup script s'execute")
     print(f"2. Connectez-vous: gcloud compute ssh {args.name} --zone={args.zone}")
     print(f"3. Verifiez l'installation: sudo systemctl status apache2 php8.3-fpm")
-    print(f"4. Copiez le depot seculab-infra sur la VM")
-    print(f"5. Lancez: sudo python3 deploy_lab.py --count=N")
+    print(f"4. Clonez le depot: git clone https://github.com/Meika-ai/seculab-infra.git")
+    print(f"5. Allez dans le repertoire: cd seculab-infra")
+    print(f"6. Creez le venv: python3 -m venv venv")
+    print(f"7. Activez le venv: source venv/bin/activate")
+    print(f"8. Installez les dependances: pip install -r requirements.txt")
+    print(f"9. Lancez le deploiement: sudo python3 deploy_lab.py --count=N")
     print(f"\n[DNS] Configurez votre DNS *.marill.fr vers: {external_ip}")
 
 

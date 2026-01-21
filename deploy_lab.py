@@ -27,7 +27,7 @@ from jinja2 import Template
 
 
 # Configuration
-DEFAULT_DOMAIN = "marill.fr"
+DEFAULT_DOMAIN = "seculab.marill.fr"
 DEFAULT_REPO = "https://github.com/Meika-ai/seculab-app.git"
 INSTANCES_DIR = Path("/var/www/instances")
 PHP_FPM_POOL_DIR = Path("/etc/php/8.3/fpm/pool.d")
