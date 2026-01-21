@@ -82,8 +82,8 @@ def create_linux_user(username: str, password: str, home_dir: Path) -> bool:
         )
         proc.communicate(f"{username}:{password}".encode())
         
-        # Configurer le profil rbash restrictif
-        setup_rbash_profile(username, home_dir)
+        # Note: setup_rbash_profile sera appele apres le git clone
+        # car le repertoire home n'existe pas encore
         
         return True
     except subprocess.CalledProcessError as e:
@@ -294,6 +294,10 @@ def deploy_instance(instance_uuid: str, domain: str, repo_url: str,
     # Cloner et configurer l'application
     clone_and_setup_app(instance_uuid, username, repo_url, flags, gemini_key)
     print(f"    [OK] Application deployee")
+    
+    # Configurer le profil rbash restrictif (apres git clone car le dir existe maintenant)
+    setup_rbash_profile(username, home_dir)
+    print(f"    [OK] Profil rbash configure")
     
     return {
         'uuid': instance_uuid,
