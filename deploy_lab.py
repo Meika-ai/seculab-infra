@@ -163,10 +163,8 @@ php_admin_value[error_log] = {{ instance_dir }}/logs/php_errors.log
     pool_file = PHP_FPM_POOL_DIR / f"{instance_uuid}.conf"
     pool_file.write_text(config)
     
-    # Creer les repertoires necessaires
-    (instance_dir / "sessions").mkdir(parents=True, exist_ok=True)
-    (instance_dir / "tmp").mkdir(parents=True, exist_ok=True)
-    (instance_dir / "logs").mkdir(parents=True, exist_ok=True)
+    # Note: les repertoires sessions/tmp/logs sont crees apres le git clone
+    # dans clone_and_setup_app()
 
 
 def create_apache_vhost(instance_uuid: str, domain: str):
@@ -229,6 +227,11 @@ def clone_and_setup_app(instance_uuid: str, username: str, repo_url: str,
         print(f"    stdout: {e.stdout}")
         print(f"    stderr: {e.stderr}")
         raise
+    
+    # Creer les repertoires necessaires pour PHP-FPM
+    (instance_dir / "sessions").mkdir(exist_ok=True)
+    (instance_dir / "tmp").mkdir(exist_ok=True)
+    (instance_dir / "logs").mkdir(exist_ok=True)
     
     # Creer le fichier .env avec les flags
     env_content = f'''# SecuLab CTF - Instance {instance_uuid}
