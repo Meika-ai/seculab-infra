@@ -106,6 +106,13 @@ apt-get install -y \\
 a2enmod proxy_fcgi setenvif rewrite headers ssl
 a2enconf php8.3-fpm
 
+# Configuration SSH pour permettre l'authentification par mot de passe
+# (Necessaire pour les etudiants)
+sed -i '/^PasswordAuthentication no$/d' /etc/ssh/sshd_config
+sed -i '/^PasswordAuthentication no$/d' /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true
+grep -q "^PasswordAuthentication yes" /etc/ssh/sshd_config || echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+systemctl restart ssh
+
 # Desactivation UFW pour permettre acces internet complet
 # (Necessaire pour git clone, API Gemini, etc.)
 systemctl stop ufw
