@@ -216,10 +216,19 @@ def clone_and_setup_app(instance_uuid: str, username: str, repo_url: str,
     """Clone le repo et configure l'instance."""
     instance_dir = INSTANCES_DIR / instance_uuid
     
+    # S'assurer que le repertoire parent existe
+    INSTANCES_DIR.mkdir(parents=True, exist_ok=True)
+    
     # Cloner le depot
-    subprocess.run([
-        "git", "clone", "--depth=1", repo_url, str(instance_dir)
-    ], check=True, capture_output=True)
+    try:
+        result = subprocess.run([
+            "git", "clone", "--depth=1", repo_url, str(instance_dir)
+        ], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"  [ERROR] Git clone failed:")
+        print(f"    stdout: {e.stdout}")
+        print(f"    stderr: {e.stderr}")
+        raise
     
     # Creer le fichier .env avec les flags
     env_content = f'''# SecuLab CTF - Instance {instance_uuid}
