@@ -63,10 +63,11 @@ def generate_flag(instance_uuid: str, flag_type: str, salt: str = "seculab2024")
 def create_linux_user(username: str, password: str, home_dir: Path) -> bool:
     """Cree un utilisateur Linux avec rbash."""
     try:
-        # Creer l'utilisateur avec rbash
+        # Creer l'utilisateur SANS le home directory (git clone le creera)
         subprocess.run([
-            "useradd", "-m",
-            "-d", str(home_dir),
+            "useradd",
+            "-M",  # Ne PAS creer le home directory
+            "-d", str(home_dir),  # Mais definir le chemin du home
             "-s", "/bin/rbash",
             "-G", "www-data",
             username
