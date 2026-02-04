@@ -226,31 +226,54 @@ class VulnerabilityChecker:
         Vérifie RCE dans calc.php
         VULNÉRABLE: Présence de eval() sur entrée utilisateur
         SÉCURISÉ: Suppression de eval() ou whitelist stricte
+        Score proportionnel: si certains eval sont corrigés mais pas tous
         """
         content = self._read_file("calc.php")
         if not content:
             return self._no_file_result("calc.php")
         
         evidence = []
-        is_fixed = True
         details = ""
         
-        # Pattern vulnérable : eval() présent
-        if re.search(r'\beval\s*\(', content):
-            # Vérifier si c'est dans un commentaire
-            lines = content.split('\n')
-            for i, line in enumerate(lines):
-                if re.search(r'\beval\s*\(', line):
-                    # Ignorer les lignes commentées
-                    stripped = line.strip()
-                    if stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
-                        evidence.append(f"Ligne {i+1}: eval() commenté (OK)")
-                        continue
-                    is_fixed = False
+        # Compter les eval() actifs et commentés
+        active_evals = 0
+        commented_evals = 0
+        total_evals = 0
+        
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if re.search(r'\beval\s*\(', line):
+                total_evals += 1
+                stripped = line.strip()
+                if stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
+                    commented_evals += 1
+                    evidence.append(f"Ligne {i+1}: eval() commenté (OK)")
+                else:
+                    active_evals += 1
                     evidence.append(f"Ligne {i+1}: eval() actif détecté")
                     self._log(f"RCE vulnérable: eval() trouvé ligne {i+1}")
         
-        # Alternatives sécurisées
+        # Calculer le score proportionnel
+        weight = WEIGHTS['rce']
+        if total_evals == 0:
+            # Pas d'eval du tout = parfait
+            is_fixed = True
+            points = weight
+            details = "Aucun eval() trouvé - parfait!"
+        elif active_evals == 0:
+            # Tous commentés = parfait
+            is_fixed = True
+            points = weight
+            details = f"Tous les eval() ({commented_evals}) ont été commentés"
+        else:
+            # Score proportionnel
+            is_fixed = False
+            fixed_ratio = commented_evals / total_evals if total_evals > 0 else 0
+            points = round(weight * fixed_ratio, 1)
+            details = f"eval() actifs: {active_evals}/{total_evals} - Score partiel"
+            evidence.append(f"Score proportionnel: {points}/{weight} pts")
+        
+        # Alternatives sécurisées (bonus info)
         secure_alternatives = [
             (r'preg_match\s*\(\s*[\'"][^\']*\d.*[\'"]', "Validation par regex stricte"),
             (r'(bc_add|bc_sub|bc_mul|bc_div)', "Utilisation de fonctions bc_*"),
@@ -261,15 +284,10 @@ class VulnerabilityChecker:
             if re.search(pattern, content):
                 evidence.append(f"Alternative sécurisée: {desc}")
         
-        if is_fixed:
-            details = "eval() supprimé ou neutralisé"
-        else:
-            details = "eval() toujours actif - RCE possible"
-        
         return {
             'fixed': is_fixed,
-            'weight': WEIGHTS['rce'],
-            'points': WEIGHTS['rce'] if is_fixed else 0,
+            'weight': weight,
+            'points': points,
             'details': details,
             'evidence': evidence
         }
@@ -398,6 +416,7 @@ class VulnerabilityChecker:
         Vérifie Prompt Injection dans secubot.php
         VULNÉRABLE: Secret dans le system prompt
         SÉCURISÉ: Secret retiré ou validation robuste
+        PARTIEL: Si "gentillement" absent = prompt modifié (déjà bien)
         """
         content = self._read_file("secubot.php")
         if not content:
@@ -410,22 +429,39 @@ class VulnerabilityChecker:
             }
         
         evidence = []
-        is_fixed = True
+        weight = WEIGHTS['prompt']
+        points = 0
+        is_fixed = False
         details = ""
         
-        # Pattern vulnérable : secret dans le prompt
-        vuln_patterns = [
-            (r'SECRET_PROMPT_INJECTION', "Constante SECRET_PROMPT_INJECTION utilisée"),
-            (r'\$systemPrompt.*secret', "Mot 'secret' dans systemPrompt"),
-            (r'code\s+secret.*est\s*:', "Révélation du code dans le prompt"),
-        ]
+        # Vérifier si le mot "gentillement" (faute originale) est présent
+        has_gentillement = bool(re.search(r'gentillement', content, re.IGNORECASE))
         
-        for pattern, desc in vuln_patterns:
-            if re.search(pattern, content, re.IGNORECASE | re.DOTALL):
-                # Vérifier si c'est dans le prompt actif (pas commenté)
-                is_fixed = False
-                evidence.append(f"Pattern vulnérable: {desc}")
-                self._log(f"PROMPT vulnérable: {desc}")
+        # Pattern vulnérable : secret dans le prompt
+        has_secret = bool(re.search(r'SECRET_PROMPT_INJECTION', content))
+        has_secret_in_prompt = bool(re.search(r'\$systemPrompt.*SECRET_PROMPT_INJECTION', content, re.DOTALL))
+        
+        if not has_secret:
+            # Secret complètement retiré = parfait
+            is_fixed = True
+            points = weight
+            details = "SECRET_PROMPT_INJECTION retiré du code"
+            evidence.append("Constante SECRET_PROMPT_INJECTION non utilisée")
+        elif not has_gentillement:
+            # Le mot "gentillement" n'est plus là = l'étudiant a modifié le prompt
+            is_fixed = False
+            points = round(weight * 0.5, 1)  # 50% des points
+            details = "Prompt modifié (faiblesse 'gentillement' retirée) - Score partiel"
+            evidence.append("Mot 'gentillement' absent - prompt réécrit")
+            evidence.append(f"Score partiel: {points}/{weight} pts")
+        else:
+            # Prompt original vulnérable intact
+            is_fixed = False
+            points = 0
+            details = "Prompt original vulnérable intact"
+            evidence.append("Pattern vulnérable: SECRET_PROMPT_INJECTION utilisée")
+            evidence.append("Pattern vulnérable: Mot 'gentillement' présent")
+            self._log("PROMPT vulnérable: prompt original intact")
         
         # Vérifications de sécurité alternatives
         secure_patterns = [
@@ -437,15 +473,10 @@ class VulnerabilityChecker:
             if re.search(pattern, content, re.IGNORECASE):
                 evidence.append(f"Protection partielle: {desc}")
         
-        if is_fixed:
-            details = "Secret retiré du prompt système"
-        else:
-            details = "Secret toujours présent dans le prompt système"
-        
         return {
             'fixed': is_fixed,
-            'weight': WEIGHTS['prompt'],
-            'points': WEIGHTS['prompt'] if is_fixed else 0,
+            'weight': weight,
+            'points': points,
             'details': details,
             'evidence': evidence
         }
@@ -470,18 +501,99 @@ class VulnerabilityChecker:
             'logic': self.check_logic(),
             'debug': self.check_debug(),
             'prompt': self.check_prompt(),
+            'htaccess': self.check_htaccess(),
+        }
+    
+    def check_htaccess(self) -> Dict:
+        """
+        BONUS: Vérifie la présence d'un .htaccess avec headers de sécurité
+        +20% bonus si CSP et headers de sécurité sont présents
+        """
+        htaccess_path = self.instance_path / ".htaccess"
+        
+        if not htaccess_path.exists():
+            return {
+                'fixed': False,
+                'weight': 0,  # Bonus, pas obligatoire
+                'points': 0,
+                'details': "Pas de .htaccess - Bonus non applicable",
+                'evidence': ["Fichier .htaccess non trouvé"],
+                'is_bonus': True
+            }
+        
+        content = htaccess_path.read_text(encoding='utf-8', errors='ignore')
+        evidence = []
+        bonus_points = 0
+        max_bonus = 20  # +20% max
+        
+        # Headers de sécurité à vérifier (chacun vaut une partie du bonus)
+        security_headers = [
+            (r'Content-Security-Policy', "CSP (Content-Security-Policy)", 8),
+            (r'X-Content-Type-Options', "X-Content-Type-Options", 3),
+            (r'X-Frame-Options', "X-Frame-Options", 3),
+            (r'X-XSS-Protection', "X-XSS-Protection", 2),
+            (r'ServerSignature\s+Off', "ServerSignature Off", 2),
+            (r'ServerTokens\s+Prod', "ServerTokens Prod", 2),
+        ]
+        
+        for pattern, desc, points in security_headers:
+            if re.search(pattern, content, re.IGNORECASE):
+                bonus_points += points
+                evidence.append(f"✅ {desc} (+{points}pts)")
+                self._log(f"HTACCESS bonus: {desc}")
+            else:
+                evidence.append(f"❌ {desc} manquant")
+        
+        # Plafonner à 20 points
+        bonus_points = min(bonus_points, max_bonus)
+        
+        is_complete = bonus_points >= 15  # 75% du bonus = "fixed"
+        
+        if bonus_points >= max_bonus:
+            details = f"Excellent! Tous les headers de sécurité (+{bonus_points}pts)"
+        elif bonus_points > 0:
+            details = f"Headers partiels: +{bonus_points}/{max_bonus}pts bonus"
+        else:
+            details = ".htaccess présent mais sans headers de sécurité"
+        
+        return {
+            'fixed': is_complete,
+            'weight': max_bonus,
+            'points': bonus_points,
+            'details': details,
+            'evidence': evidence,
+            'is_bonus': True
         }
 
 
 def calculate_score(results: Dict) -> Tuple[float, str]:
-    """Calcule le score total et attribue une note."""
-    total_points = sum(r['points'] for r in results.values())
-    max_points = sum(WEIGHTS.values())
+    """Calcule le score total et attribue une note.
     
-    percentage = (total_points / max_points) * 100 if max_points > 0 else 0
+    Le score de base est sur 100 (les 7 failles obligatoires).
+    Le bonus .htaccess peut ajouter jusqu'à +20 points (score max: 120).
+    """
+    # Séparer les résultats de base et les bonus
+    base_results = {k: v for k, v in results.items() if not v.get('is_bonus', False)}
+    bonus_results = {k: v for k, v in results.items() if v.get('is_bonus', False)}
     
-    # Attribution de la note
-    if percentage >= 90:
+    # Score de base sur 100
+    base_points = sum(r['points'] for r in base_results.values())
+    max_base = sum(WEIGHTS.values())  # 100
+    
+    # Points bonus
+    bonus_points = sum(r['points'] for r in bonus_results.values())
+    
+    # Score total (base + bonus)
+    total_points = base_points + bonus_points
+    max_possible = max_base + 20  # 120 max avec bonus
+    
+    # Pourcentage (peut dépasser 100%)
+    percentage = (total_points / max_base) * 100 if max_base > 0 else 0
+    
+    # Attribution de la note (ajustée pour le bonus)
+    if percentage >= 110:
+        grade = "A+"  # Excellent avec bonus
+    elif percentage >= 90:
         grade = "A"
     elif percentage >= 80:
         grade = "B"
