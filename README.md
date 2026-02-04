@@ -85,12 +85,28 @@ Configurez un enregistrement DNS wildcard :
 ### 6. Valider les corrections étudiantes
 
 ```bash
-# Tester une instance spécifique
-python validate_instance.py --url=https://abc12345.marill.fr --verbose
+# Valider une instance spécifique
+sudo python3 validate_lab.py --instance=abc12345 --verbose
 
-# Tester toutes les instances depuis le CSV
-python validate_instance.py --csv=instances_report.csv --output=results.csv
+# Valider toutes les instances depuis le CSV
+sudo python3 validate_lab.py --csv=instances_report.csv
 ```
+
+Le script analyse le code de chaque instance et vérifie si les 7 failles ont été corrigées.
+
+**Pondération des failles :**
+
+| Faille           | Poids | Module      |
+| ---------------- | ----- | ----------- |
+| SQL Injection    | 20%   | auth.php    |
+| RCE (eval)       | 20%   | calc.php    |
+| IDOR             | 15%   | profile.php |
+| XSS Stocké       | 15%   | wall.php    |
+| Logic Error      | 10%   | admin.php   |
+| Info Disclosure  | 10%   | debug.php   |
+| Prompt Injection | 10%   | secubot.php |
+
+Chaque instance reçoit un `validation_report.json` avec le détail des vérifications.
 
 ## 📁 Structure du projet
 
@@ -98,7 +114,7 @@ python validate_instance.py --csv=instances_report.csv --output=results.csv
 seculab-infra/
 ├── provision_vm.py       # Création de la VM GCP
 ├── deploy_lab.py         # Déploiement des instances
-├── validate_instance.py  # Validation des corrections
+├── validate_lab.py       # Validation des corrections
 ├── requirements.txt      # Dépendances Python
 ├── .env.master          # Clé Gemini (à configurer)
 └── README.md            # Ce fichier
@@ -119,7 +135,10 @@ Le fichier `instances_report.csv` contient :
 | secret-xss              | Flag XSS                                |
 | secret-rce              | Flag RCE                                |
 | secret-logic            | Flag Logic Error                        |
+| secret-debug            | Flag Info Disclosure                    |
 | secret-prompt-injection | Flag Prompt Injection                   |
+| score                   | Score de correction (0-100%)            |
+| grade                   | Note (A/B/C/D/E/F)                      |
 
 ## 🔐 Sécurité
 
